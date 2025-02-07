@@ -1,4 +1,5 @@
-from fastapi import FastAPI
+import json
+from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from routers import sensor
 from database import engine
@@ -20,3 +21,10 @@ app.add_middleware(
 
 # Include routers
 app.include_router(sensor.router, prefix="/sensor", tags=["sensor"])
+
+# Add new OpenAPI YAML endpoint
+@app.get("/openapi.yaml", include_in_schema=False)
+def get_openapi_yaml():
+    openapi_schema = app.openapi()
+    json_schema = json.dump(openapi_schema)
+    return Response(content=json_schema, media_type="application/json")
