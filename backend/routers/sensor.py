@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket
 import pandas as pd
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
@@ -12,6 +12,7 @@ from database import get_db
 import models
 from services import is_anomaly, calculate_aggregates
 from enum import Enum
+from .websocket import manager
 
 class TimeWindow(str, Enum):
     ONE_MIN = "1m"
@@ -88,6 +89,14 @@ async def ingest_data(data: SensorDataIn, db: Session = Depends(get_db)):
         db.add(db_record)
         db.commit()
         db.refresh(db_record)
+        
+        await manager.broadcast({
+            "timestamp": db_record.timestamp.strftime('%Y-%m-%dT%H:%M:%SZ'),
+            "temperature": clean_value(db_record.temperature),
+            "humidity": clean_value(db_record.humidity),
+            "air_quality": clean_value(db_record.air_quality),
+            "is_anomaly": db_record.is_anomaly
+        })
         
         return SensorDataOut(
             timestamp=db_record.timestamp,
@@ -218,3 +227,12 @@ def get_aggregated_data(
     } for d in data])
     
     return calculate_aggregates(df, window)
+
+@router.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            await websocket.receive_text()  # Keep connection alive
+    except:
+        manager.disconnect(websocket)
