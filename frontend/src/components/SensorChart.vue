@@ -1,49 +1,185 @@
 <template>
-  <div class="chart-wrapper">
-    <div class="chart-container">
-      <Line v-if="chartData" :data="chartData" :options="chartOptions" />
+  <div class="p-5 bg-white rounded-lg shadow">
+    <div class="flex justify-between items-center mb-4">
+      <h3 class="text-lg font-semibold text-gray-800">Sensor Data Trends</h3>
+      <div class="flex items-center space-x-2">
+        <span class="text-sm text-gray-600">Data Points:</span>
+        <select 
+          v-model="selectedDataPoints" 
+          class="px-3 py-1 border rounded text-sm bg-white"
+        >
+          <option value="10">10 points</option>
+          <option value="50">50 points</option>
+          <option value="100">100 points</option>
+          <option value="250">250 points</option>
+          <option value="-1">All points</option>
+        </select>
+      </div>
+    </div>
+    <div class="h-96">
+      <Line :data="chartData" :options="chartOptions" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, onMounted, onUnmounted, watch } from 'vue';
 import { Line } from 'vue-chartjs';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
+import axios from 'axios';
 import type { SensorData } from '../types';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
 const props = defineProps<{
-  data: SensorData[]
+  data: SensorData[] | any;
+  timeWindow: string;  // Add new prop
 }>();
 
-const chartData = computed(() => ({
-  labels: props.data.map(d => new Date(d.timestamp).toLocaleString()),
-  datasets: [
-    {
-      label: 'Temperature (°C)',
-      data: props.data.map(d => d.temperature),
-      borderColor: '#FF6384',
-      backgroundColor: props.data.map(d => d.is_anomaly ? '#FF0000' : '#FF6384'),
-      tension: 0.1
-    },
-    {
-      label: 'Humidity (%)',
-      data: props.data.map(d => d.humidity),
-      borderColor: '#36A2EB',
-      backgroundColor: props.data.map(d => d.is_anomaly ? '#FF0000' : '#36A2EB'),
-      tension: 0.1
-    },
-    {
-      label: 'Air Quality',
-      data: props.data.map(d => d.air_quality),
-      borderColor: '#4BC0C0',
-      backgroundColor: props.data.map(d => d.is_anomaly ? '#FF0000' : '#4BC0C0'),
-      tension: 0.1
+const API_BASE_URL = 'http://localhost:8000';
+const localData = ref<SensorData[]>([]);
+const ws = ref<WebSocket | null>(null);
+
+const emit = defineEmits(['dataUpdated']);
+
+const selectedDataPoints = ref(100);
+
+// Add function to fetch filtered data
+const fetchFilteredData = async () => {
+  try {
+    const startDate = getStartDate();
+    const endDate = new Date().toISOString();
+    
+    const response = await axios.get(`${API_BASE_URL}/sensor/processed`, {
+      params: {
+        page: 1,
+        size: 1000,  // Increase size to get more data points
+        start_date: startDate,
+        end_date: endDate
+      }
+    });
+    
+    // Sort data by timestamp to ensure correct chart display
+    localData.value = response.data.items.sort((a: SensorData, b: SensorData) => 
+      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    );
+  } catch (error) {
+    console.error('Error fetching filtered data:', error);
+  }
+};
+
+// Add function to calculate start date based on time window
+const getStartDate = () => {
+  const now = new Date();
+  switch (props.timeWindow) {
+    case '10m':
+      return new Date(now.getTime() - 10 * 60 * 1000).toISOString();
+    case '1h':
+      return new Date(now.getTime() - 60 * 60 * 1000).toISOString();
+    case '24h':
+      return new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+    default:
+      return new Date(now.getTime() - 60 * 60 * 1000).toISOString();
+  }
+};
+
+// Watch for immediate time window changes
+watch(() => props.timeWindow, () => {
+  fetchFilteredData();
+}, { immediate: true });
+
+// Update WebSocket handler
+onMounted(() => {
+  fetchFilteredData();
+  
+  ws.value = new WebSocket('ws://localhost:8000/sensor/ws');
+  
+  ws.value.onmessage = async (event) => {
+    const newData = JSON.parse(event.data);
+    const startDate = new Date(getStartDate());
+    const newDataDate = new Date(newData.timestamp);
+    
+    // Only add new data if it falls within the selected time window
+    if (newDataDate >= startDate) {
+      localData.value.push(newData);
+      // Remove old data outside the time window
+      localData.value = localData.value.filter(d => 
+        new Date(d.timestamp) >= startDate
+      );
+      // Sort to maintain order
+      localData.value.sort((a, b) => 
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      );
     }
-  ]
-}));
+  };
+});
+
+onUnmounted(() => {
+  if (ws.value) {
+    ws.value.close();
+  }
+});
+
+// Update aggregateDataPoints function to handle 'all' option
+const aggregateDataPoints = (data: SensorData[]) => {
+  const targetPoints = selectedDataPoints.value;
+  if (targetPoints === -1 || data.length <= targetPoints) return data;
+  
+  const chunkSize = Math.ceil(data.length / targetPoints);
+  const aggregated: SensorData[] = [];
+  
+  for (let i = 0; i < data.length; i += chunkSize) {
+    const chunk = data.slice(i, i + chunkSize);
+    const avgPoint = {
+      timestamp: chunk[Math.floor(chunk.length / 2)].timestamp, // Use middle timestamp
+      temperature: chunk.reduce((sum, d) => sum + (d.temperature || 0), 0) / chunk.length,
+      humidity: chunk.reduce((sum, d) => sum + (d.humidity || 0), 0) / chunk.length,
+      air_quality: chunk.reduce((sum, d) => sum + (d.air_quality || 0), 0) / chunk.length,
+      is_anomaly: chunk.some(d => d.is_anomaly) // Mark as anomaly if any point in chunk is anomaly
+    };
+    aggregated.push(avgPoint);
+  }
+  
+  return aggregated;
+};
+
+// Update chartData computed property
+const chartData = computed(() => {
+  const aggregatedData = aggregateDataPoints(localData.value);
+  
+  return {
+    labels: aggregatedData.map(d => new Date(d.timestamp).toLocaleString()),
+    datasets: [
+      {
+        label: 'Temperature (°C)',
+        data: aggregatedData.map(d => d.temperature),
+        borderColor: '#FF6384',
+        backgroundColor: aggregatedData.map(d => d.is_anomaly ? '#FF0000' : 'rgba(255, 99, 132, 0.2)'),
+        pointRadius: aggregatedData.map(d => d.is_anomaly ? 6 : 3),
+        pointStyle: aggregatedData.map(d => d.is_anomaly ? 'triangle' : 'circle'),
+        borderWidth: 2
+      },
+      {
+        label: 'Humidity (%)',
+        data: aggregatedData.map(d => d.humidity),
+        borderColor: '#36A2EB',
+        backgroundColor: aggregatedData.map(d => d.is_anomaly ? '#FF0000' : 'rgba(54, 162, 235, 0.2)'),
+        pointRadius: aggregatedData.map(d => d.is_anomaly ? 6 : 3),
+        pointStyle: aggregatedData.map(d => d.is_anomaly ? 'triangle' : 'circle'),
+        borderWidth: 2
+      },
+      {
+        label: 'Air Quality',
+        data: aggregatedData.map(d => d.air_quality),
+        borderColor: '#4BC0C0',
+        backgroundColor: aggregatedData.map(d => d.is_anomaly ? '#FF0000' : 'rgba(75, 192, 192, 0.2)'),
+        pointRadius: aggregatedData.map(d => d.is_anomaly ? 6 : 3),
+        pointStyle: aggregatedData.map(d => d.is_anomaly ? 'triangle' : 'circle'),
+        borderWidth: 2
+      }
+    ]
+  };
+});
 
 const chartOptions = {
   responsive: true,
@@ -55,6 +191,19 @@ const chartOptions = {
     title: {
       display: true,
       text: 'Sensor Data Trends'
+    },
+    tooltip: {
+      callbacks: {
+        label: (context: any) => {
+          const dataIndex = context.dataIndex;
+          const dataPoint = localData.value[dataIndex];
+          let label = context.dataset.label + ': ' + context.formattedValue;
+          if (dataPoint?.is_anomaly) {
+            label += ' (ANOMALY)';
+          }
+          return label;
+        }
+      }
     }
   },
   scales: {
@@ -64,16 +213,3 @@ const chartOptions = {
   }
 };
 </script>
-
-<style scoped>
-.chart-wrapper {
-  padding: 20px;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.chart-container {
-  height: 400px;
-}
-</style>

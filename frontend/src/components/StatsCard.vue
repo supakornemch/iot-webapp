@@ -1,22 +1,31 @@
 <template>
-  <div class="stats-card">
-    <h3>{{ title }}</h3>
-    <div class="stats-grid">
-      <div class="stat-item">
-        <span class="label">Mean:</span>
-        <span class="value">{{ formatNumber(stats.mean) }}</span>
+  <div v-motion="{ initial: { opacity: 0, scale: 0.8 }, enter: { opacity: 1, scale: 1, transition: { duration: 0.5 } } }" 
+       class="bg-white p-4 rounded-lg shadow">
+    <div class="flex justify-between items-center mb-4">
+      <h3 class="text-lg font-semibold text-gray-800">{{ title }}</h3>
+      <div v-if="hasAnomaly" class="px-2 py-1 bg-red-100 text-red-600 text-sm rounded-full animate-pulse">
+        Anomaly Detected
       </div>
-      <div class="stat-item">
-        <span class="label">Median:</span>
-        <span class="value">{{ formatNumber(stats.median) }}</span>
+    </div>
+    <div class="grid grid-cols-2 gap-2">
+      <div class="flex justify-between p-2 bg-gray-100 rounded"
+           :class="{ 'bg-red-50': isAnomalyValue(stats.mean) }">
+        <span class="text-sm text-gray-600">Mean:</span>
+        <span class="font-medium" :class="{ 'text-red-600': isAnomalyValue(stats.mean), 'text-gray-800': !isAnomalyValue(stats.mean) }">
+          {{ formatNumber(stats.mean) }}
+        </span>
       </div>
-      <div class="stat-item">
-        <span class="label">Min:</span>
-        <span class="value">{{ formatNumber(stats.min) }}</span>
+      <div class="flex justify-between p-2 bg-gray-100 rounded">
+        <span class="text-sm text-gray-600">Median:</span>
+        <span class="font-medium text-gray-800">{{ formatNumber(stats.median) }}</span>
       </div>
-      <div class="stat-item">
-        <span class="label">Max:</span>
-        <span class="value">{{ formatNumber(stats.max) }}</span>
+      <div class="flex justify-between p-2 bg-gray-100 rounded">
+        <span class="text-sm text-gray-600">Min:</span>
+        <span class="font-medium text-gray-800">{{ formatNumber(stats.min) }}</span>
+      </div>
+      <div class="flex justify-between p-2 bg-gray-100 rounded">
+        <span class="text-sm text-gray-600">Max:</span>
+        <span class="font-medium text-gray-800">{{ formatNumber(stats.max) }}</span>
       </div>
     </div>
   </div>
@@ -25,48 +34,22 @@
 <script setup lang="ts">
 import type { MetricStats } from '../types';
 
-defineProps<{
+const props = defineProps<{
   title: string;
   stats: MetricStats;
+  hasAnomaly?: boolean;
 }>();
 
-const formatNumber = (num: number) => num.toFixed(2);
+const formatNumber = (num: number | null) => {
+  return num != null ? num.toFixed(2) : '-';
+};
+
+const isAnomalyValue = (value: number | null): boolean => {
+  if (!value || !props.stats) return false;
+  const threshold = 2; // Standard deviations
+  const mean = props.stats.mean;
+  const range = props.stats.max - props.stats.min;
+  const standardDev = range / 4; // Approximate standard deviation
+  return Math.abs(value - mean) > threshold * standardDev;
+};
 </script>
-
-<style scoped>
-.stats-card {
-  background: white;
-  padding: 1rem;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.stats-card h3 {
-  margin: 0 0 1rem 0;
-  color: #2c3e50;
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 0.5rem;
-}
-
-.stat-item {
-  display: flex;
-  justify-content: space-between;
-  padding: 0.5rem;
-  background: #f8f9fa;
-  border-radius: 4px;
-}
-
-.label {
-  color: #6c757d;
-  font-size: 0.9rem;
-}
-
-.value {
-  font-weight: 600;
-  color: #2c3e50;
-}
-</style>
