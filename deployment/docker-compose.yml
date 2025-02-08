@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  api:
+    build: 
+      context: ../backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../backend:/app
+    environment:
+      - DATABASE_URL=sqlite:///./sensor_data.db
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/docs"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - iot-network
+
+  simulation:
+    build:
+      context: .
+      dockerfile: simulation.Dockerfile
+    environment:
+      - API_URL=http://api:8000
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - iot-network
+
+networks:
+  iot-network:
+    driver: bridge
