@@ -1,87 +1,73 @@
-# **IoT Data Processing Assignment**
+# ระบบประมวลผลข้อมูล IoT
 
-## **Objective**
+## แนวทางการประมวลผลข้อมูล
 
-Develop a **backend service** that processes IoT time-series data and provides an API to retrieve aggregated insights.
+ระบบทำงานโดยการประมวลผลข้อมูลเซนเซอร์แบบเรียลไทม์ด้วยวิธีการดังนี้:
 
-## **Requirements**
+1. **การทำความสะอาดข้อมูล**
+   - จัดการค่าที่หายไปด้วยการประมาณค่าในช่วง
+   - ลบข้อมูลที่มีเวลาซ้ำกัน
+   - ตรวจสอบช่วงค่าที่ถูกต้องสำหรับ:
+     - อุณหภูมิ (0-50°C)
+     - ความชื้น (0-100%)
+     - คุณภาพอากาศ (0-500)
 
-### **1. Backend (FastAPI / Django REST Framework)**
+2. **การตรวจจับความผิดปกติ**
+   - ใช้วิธี IQR (Interquartile Range) ในการตรวจจับค่าผิดปกติ
+   - วิธีการคำนวณ IQR:
+     1. คำนวณ Q1 (ควอไทล์ที่ 1) คือค่าที่อยู่ที่ตำแหน่ง 25%
+     2. คำนวณ Q3 (ควอไทล์ที่ 3) คือค่าที่อยู่ที่ตำแหน่ง 75%
+     3. คำนวณ IQR = Q3 - Q1
+     4. กำหนดขอบเขตบน = Q3 + (1.5 × IQR)
+     5. กำหนดขอบเขตล่าง = Q1 - (1.5 × IQR)
+     6. ค่าที่อยู่นอกขอบเขตจะถูกระบุว่าเป็นค่าผิดปกติ
+   
 
-- Create an API to **ingest sensor data** (temperature, humidity, air quality).
-- Store the data in any **SQL database** (SQLite, PostgreSQL, or MySQL preferred).
-- Implement an endpoint to fetch **aggregated insights** (mean, median, min/max over user-defined time windows, e.g., last 10 minutes, 1 hour, 24 hours).
+## วิธีการเริ่มต้นใช้งาน
 
-### **2. Data Processing**
+### สิ่งที่ต้องติดตั้ง
+- Docker และ Docker Compose
+- Git
 
-- Implement **data cleaning** (remove duplicate values, handle missing data).
-- Apply **simple anomaly detection** (Z-score or IQR to flag outliers).
-- Return the cleaned dataset through an API endpoint.
+### ขั้นตอนการรันโปรเจค
 
-### **3. Basic Frontend (Vue 3 + TypeScript)**
-
-- Build a simple page that **fetches processed data** via API.
-- Use **any chart library** to display sensor trends.
-- Highlight **anomalies** in the visualization.
-
-## **Expected API Endpoints**
-
-```
-POST /sensor/data        → Ingest raw sensor data
-GET /sensor/processed    → Fetch cleaned & anomaly-detected data
-GET /sensor/aggregated   → Fetch aggregated statistics (mean, median, min/max)
-```
-
-## **Deliverables**
-
-- **GitHub Repository Link** (preferred) OR ZIP file with the project.
-- **README** with setup instructions.
-- **API Documentation** (OpenAPI spec or Postman collection).
-- **Short explanation (1 paragraph)** on the data cleaning & anomaly detection approach.
-
-## **Recommended Project Structure (You can adjust as needed)**
-
-```
-/assignment
-├── backend
-│   ├── main.py
-│   ├── models.py
-│   ├── database.py
-│   ├── services.py
-│   ├── routers
-│   │   ├── sensor.py
-│   ├── requirements.txt
-│   ├── Dockerfile
-│
-├── frontend
-│   ├── src
-│   │   ├── App.vue
-│   │   ├── components
-│   │   │   ├── SensorChart.vue
-│   │   ├── main.ts
-│   ├── package.json
-│   ├── vite.config.ts
-│   ├── Dockerfile
-│
-├── README.md
-└── docker-compose.yml
+1. Clone โปรเจค:
+```bash
+git clone <repository-url>
+cd scgp-iot-testing
 ```
 
-## **Example Data**
+2. รันระบบทั้งหมดด้วย Docker Compose:
+```bash
+cd deployment
+docker-compose up --build
+```
 
-[sensor_data.csv](attachment:4fff4e38-6492-4687-947f-d3f8902b8cd3:sensor_data.csv)
+การรันจะเริ่ม:
+- Backend API (FastAPI) ที่ http://localhost:8000
+- Frontend (Vue.js) ที่ http://localhost:3000
+- ระบบจำลองเซนเซอร์
 
-## **Submission Instructions**
+### เอกสาร API
 
-- Send an email to **chansric@scg.com** with:
-    - **GitHub Repository Link** (preferred) OR ZIP file with the project.
-    - **Short explanation** of the data processing approach.
-    - **API documentation** (Postman collection or OpenAPI spec).
+สามารถดูเอกสาร API แบบ OpenAPI ได้ที่:
+- http://localhost:8000/docs (Swagger UI)
+- http://localhost:8000/redoc (ReDoc)
 
-## **Time Expectation**
+## โครงสร้างโปรเจค
 
-- Submit within **48 hours** after receiving the assignment.
+```
+/scgp-iot-testing
+├── backend/          # แอพพลิเคชัน FastAPI
+├── frontend/         # ส่วนติดต่อผู้ใช้ Vue.js
+└── deployment/       # การตั้งค่า Docker และการ Deploy
+    └── scripts/     # สคริปต์จำลองเซนเซอร์
+```
 
----
+## การทำงานของระบบ
 
-This assignment is designed to assess your ability to work with **data ingestion, cleaning, anomaly detection, and visualization**. Good luck!
+1. ระบบจะรับข้อมูลจากเซนเซอร์ผ่าน API
+2. ทำการประมวลผลและทำความสะอาดข้อมูลอัตโนมัติ
+3. ตรวจจับความผิดปกติและแสดงผลบนหน้าเว็บ
+4. เก็บข้อมูลลงฐานข้อมูล SQLite
+5. แสดงผลกราฟและสถิติต่างๆ บนหน้าเว็บ
