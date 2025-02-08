@@ -3,8 +3,39 @@ import requests
 import time
 import random
 from datetime import datetime
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 BASE_URL = os.getenv('API_URL', 'http://localhost:8000')
+
+def create_session():
+    session = requests.Session()
+    retry_strategy = Retry(
+        total=5,
+        backoff_factor=2,
+        status_forcelist=[500, 502, 503, 504],
+    )
+    adapter = HTTPAdapter(max_retries=retry_strategy)
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+    return session
+
+def wait_for_api():
+    session = create_session()
+    max_attempts = 10
+    attempt = 0
+    
+    while attempt < max_attempts:
+        try:
+            response = session.get(f"{BASE_URL}/docs")
+            if response.status_code == 200:
+                print("API is ready")
+                return True
+        except Exception as e:
+            print(f"Waiting for API... (attempt {attempt + 1}/{max_attempts})")
+        attempt += 1
+        time.sleep(5)
+    return False
 
 def generate_sensor_data():
     """Generate random sensor data with occasional anomalies"""
@@ -37,12 +68,18 @@ def generate_sensor_data():
 def simulate_sensor_data():
     """Continuously send sensor data every second"""
     print("Starting sensor data simulation...")
-    print("Press Ctrl+C to stop")
+    print(f"Connecting to API at: {BASE_URL}")
+    
+    if not wait_for_api():
+        print("Failed to connect to API")
+        return
+    
+    session = create_session()
     
     while True:
         try:
             data = generate_sensor_data()
-            response = requests.post(f"{BASE_URL}/sensor/data", json=data)
+            response = session.post(f"{BASE_URL}/sensor/data", json=data)
             
             if response.status_code == 200:
                 result = response.json()
@@ -51,14 +88,13 @@ def simulate_sensor_data():
             else:
                 print(f"Error sending data: {response.status_code}")
             
-            time.sleep(1)  # Wait for 1 second
+            time.sleep(1)
             
-        except KeyboardInterrupt:
-            print("\nStopping simulation...")
-            break
         except Exception as e:
             print(f"Error: {str(e)}")
-            time.sleep(1)  # Wait before retrying
+            time.sleep(5)  # Longer delay on error
 
 if __name__ == "__main__":
+    # Add initial delay to ensure API is fully ready
+    time.sleep(5)
     simulate_sensor_data()
