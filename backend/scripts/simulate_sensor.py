@@ -93,8 +93,3 @@ def simulate_sensor_data():
         except Exception as e:
             print(f"Error: {str(e)}")
             time.sleep(5)  # Longer delay on error
-
-if __name__ == "__main__":
-    # Add initial delay to ensure API is fully ready
-    time.sleep(5)
-    simulate_sensor_data()

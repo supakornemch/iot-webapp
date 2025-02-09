@@ -4,11 +4,6 @@ from scipy import stats
 from typing import Dict, List, Optional
 import math
 
-def detect_anomalies(df, column, threshold=3):
-    z_scores = np.abs(stats.zscore(df[column].dropna()))
-    anomalies = z_scores > threshold
-    return anomalies
-
 def detect_anomalies_iqr(values: List[float], multiplier: float = 1.5) -> List[bool]:
     q1 = np.percentile(values, 25)
     q3 = np.percentile(values, 75)
@@ -24,19 +19,6 @@ def is_anomaly(value: float, recent_values: List[float]) -> bool:
     values_with_current = recent_values + [value]
     anomalies = detect_anomalies_iqr(values_with_current)
     return anomalies[-1]  # Return result for current value
-
-def clean_and_process_data(data_df):
-    # Remove duplicates
-    data_df = data_df.drop_duplicates()
-    
-    # Handle missing values with forward fill
-    data_df = data_df.fillna(method='ffill')
-    
-    # Detect anomalies for each sensor
-    for column in ['temperature', 'humidity', 'air_quality']:
-        data_df[f'{column}_anomaly'] = detect_anomalies(data_df, column)
-    
-    return data_df
 
 def clean_float(value: float) -> Optional[float]:
     """Clean float values for JSON serialization"""

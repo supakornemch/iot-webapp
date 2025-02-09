@@ -30,19 +30,6 @@ services:
     networks:
       - iot-network
 
-  simulation:
-    build:
-      context: .
-      dockerfile: simulation.Dockerfile
-    environment:
-      - API_URL=http://api:8000
-    depends_on:
-      api:
-        condition: service_healthy
-    restart: always
-    networks:
-      - iot-network
-
 networks:
   iot-network:
     driver: bridge
