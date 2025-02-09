@@ -23,6 +23,7 @@ dist-ssr
 
 # Local env files
 *.local
+*.lock
 .env
 .env.*
 

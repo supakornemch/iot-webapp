@@ -5,7 +5,7 @@
     "module": "ESNext",
     "lib": ["ESNext", "DOM"],
     "skipLibCheck": true,
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
@@ -17,11 +17,18 @@
     "noFallthroughCasesInSwitch": true,
     "sourceMap": true,
     "esModuleInterop": true,
+    "types": ["vite/client", "vue"],
     "paths": {
       "@/*": ["./src/*"]
     },
     "baseUrl": "."
   },
-  "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.tsx", "src/**/*.vue"],
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.d.ts",
+    "src/**/*.tsx",
+    "src/**/*.vue",
+    "vite.config.ts"
+  ],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

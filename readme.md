@@ -60,8 +60,6 @@ docker-compose up --build
 /scgp-iot-testing
 ├── backend/          # แอพพลิเคชัน FastAPI
 ├── frontend/         # ส่วนติดต่อผู้ใช้ Vue.js
-└── deployment/       # การตั้งค่า Docker และการ Deploy
-    └── scripts/     # สคริปต์จำลองเซนเซอร์
 ```
 
 ## การทำงานของระบบ
